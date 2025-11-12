@@ -39,16 +39,20 @@
     "safeps": "~6.0.0",
     "glob": "~5.0.14"
   },
+  "peerDependencies": {
+    "docpad": "6"
+  },
   "devDependencies": {
-    "coffee-script": "~1.10.0",
     "docpad": ">=6.78",
     "joe": "~1.6.0",
     "joe-reporter-console": "~1.2.1",
     "chai": "~3.2.0"
   },
-  "main": "./out/gulp.plugin.js",
+  "main": "src/gulp.plugin.js",
   "scripts": {
-    "preinstall": "node ./cyclic.js",
-    "test": "node ./out/gulp.test.js"
-  }
+    "test": "node ./gulp.test.js"
+  },
+  "files": [
+    "src"
+  ]
 }
