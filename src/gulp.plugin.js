@@ -1,72 +1,62 @@
-// Modern ES6 version of docpad-plugin-gulp (DocPad 8 compatible)
-module.exports = function (BasePlugin) {
-    class GulpPlugin extends BasePlugin {
+// @ts-nocheck
+'use strict'
 
-        get name() {
-            return "gulp";
-        }
+const BasePlugin = require('docpad-baseplugin')
+const { spawn } = require('child_process')
+const path = require('path')
+const os = require('os')
 
-        // ✅ MUST NOT define "config:" — use this instead
-        getDefaultConfig() {
-            return {
-                background: false,
-                writeAfter: []
-            };
-        }
+class GulpPlugin extends BasePlugin {
+  get name() {
+    return 'gulp'
+  }
 
-        constructor(opts) {
-            super(opts);
+  get initialConfig() {
+    return {
+      background: false,
+      generateAfter: ['build-js'], // default Gulp tasks to run after generate
+    }
+  }
 
-            const { docpad } = opts;
+  // Hook into DocPad's generateAfter event
+  generateAfter(opts, next) {
+    const config = this.getConfig()
+    const tasks = config.generateAfter
 
-            this.safeps = require("safeps");
-            this.path = require("path");
-            this.glob = require("glob");
-
-            this.createEventHandlers(docpad);
-        }
-
-        createEventHandlers(docpad) {
-            docpad.getEvents().forEach(eventName => {
-                this[eventName] = (opts, next) => {
-                    const tasks = this.getConfig()[eventName];
-
-                    if (tasks) {
-                        this.processGulp(tasks, opts, next);
-                    } else {
-                        next();
-                    }
-                };
-            });
-        }
-
-        processGulp(tasks, opts, next) {
-            const rootPath = this.docpad.getConfig().rootPath;
-
-            const files = this.glob.sync("**/gulp/bin/gulp.js", {
-                cwd: rootPath,
-                nosort: true
-            });
-
-            const gulpPath = files[0];
-
-            if (!gulpPath) {
-                return next(new Error("Could not find the gulp command line interface."));
-            }
-
-            const command = [
-                this.path.join(rootPath, gulpPath),
-                ...tasks
-            ];
-
-            if (!this.getConfig().background) {
-                this.safeps.spawn(command, { cwd: rootPath, output: true }, next);
-            } else {
-                this.safeps.spawn(command, { cwd: rootPath, output: true });
-                next();
-            }
-        }
+    if (!tasks || tasks.length === 0) {
+      return next()
     }
 
-    return GulpPlugin;
-};
+    const startTime = Date.now()
+    const cwd = process.cwd()
+
+    // Use npx or npx.cmd for Windows
+    const gulpCommand = os.platform() === 'win32' ? 'npx.cmd' : 'npx'
+    const gulpArgs = ['gulp', ...tasks]
+
+    this.docpad.log('info', `[GulpPlugin] Running Gulp tasks: ${tasks.join(', ')}`)
+
+    const gulpProc = spawn(gulpCommand, gulpArgs, {
+      stdio: 'inherit',
+      shell: true,
+      cwd,
+    })
+
+    gulpProc.on('error', (err) => {
+      this.docpad.log('error', `[GulpPlugin] Failed to start Gulp: ${err}`)
+      next(err)
+    })
+
+    gulpProc.on('close', (code) => {
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(2)
+      if (code === 0) {
+        this.docpad.log('info', `[GulpPlugin] Gulp tasks completed successfully in ${elapsed}s`)
+      } else {
+        this.docpad.log('error', `[GulpPlugin] Gulp tasks exited with code ${code}`)
+      }
+      next()
+    })
+  }
+}
+
+module.exports = GulpPlugin
